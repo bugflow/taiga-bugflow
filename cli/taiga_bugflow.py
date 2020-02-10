@@ -40,10 +40,19 @@ class KanbanActivity:
     def transition_time(self):
         return self.raw[4]
 
+    @property
+    def story_points(self):
+        return self.raw[5]
+
     def __str__(self):
-        return "%s [%s] (%s --> %s) [%s] %s" % (
+        if not self.story_points:
+            p = '-'
+        else:
+            p = "%s points" % self.story_points
+        return "%s [%s] [%s] (%s --> %s) [%s] %s" % (
             self.transition_time,
             self.ticket_id,
+            p,
             self.from_state,
             self.to_state,
             self.transition_name,
@@ -52,85 +61,21 @@ class KanbanActivity:
 
 
 class TaigaDB:
+
+    QUERY_TEMPLATE_FILE = './templates/taiga-status-updates.sql'
+
     def __init__(self, db_host, db_user, db_psx, db_name="taiga"):
         self.db_connection = psycopg2.connect(
             host=db_host, user=db_user,
             password=db_psx, database=db_name
         )
-        # maybe put this in a jinja2 template,
-        # it's an ugly thing to have in the python file
-        self.sql_template = """
-SELECT
-    transition,
-    -- TODO: this should be generated from a workflow config object
-    CASE
-        WHEN (transition ->> 0 != 'New' OR transition ->> 0 != 'Some future sprint')
-	AND transition ->> 1 = 'In progress'
-        THEN 'Started'
-
-        WHEN (transition ->> 0 = 'In progress' OR transition ->> 0 = 'Backlog' OR transition ->> 0 = 'New')
-        AND (transition ->> 1 = 'Some future sprint' OR transition ->> 1 = 'New')
-        THEN 'Decreased scope'
-
-        WHEN (transition ->> 0 = 'Some future sprint' OR transition ->> 0 = 'New')
-        AND (transition ->> 1 = 'In progress' OR transition ->> 1 = 'Backlog')
-        THEN 'Increased scope'
-
-        WHEN transition ->> 0 != 'Failed QA'
-        AND transition ->> 1 = 'Ready for review'
-        THEN 'Developed'
-
-        WHEN transition ->> 1 = 'Failed QA'
-        THEN 'Rejected'
-
-        WHEN transition ->> 0 = 'Failed QA'
-        AND transition ->> 1 = 'Ready for review' 
-        THEN 'Fixed'
-
-        WHEN transition ->> 0 != 'Backlog'
-        AND transition ->> 1 = 'Done'
-        THEN 'Delivered'
-	
-        WHEN transition ->> 0 = 'Backlog'
-        AND transition ->> 1 = 'Done'
-        THEN 'OTBE'
-	
-        ELSE 'Unknown'
-    END as transition_action,
-    user_story_ref,
-    user_story_subject,
-    created
-FROM
-    (
-        SELECT
-		data#>'{{values_diff, status}}' as "transition",  -- CASE statement to swap these for labels
-		data#>'{{userstory, id}}' as "user_story_id",
-		data#>'{{userstory, ref}}' as "user_story_ref", -- the ticket ID
-		data#>'{{userstory, subject}}' as "user_story_subject", -- make join on userstory.ud to get current subject?
-		created,
-		content_type_id
-	FROM timeline_timeline
-	-- we care about changes to user stories
-	WHERE event_type='userstories.userstory.change'
-	-- ignore comments etc, we only want state (column) changes
- 	AND (
-		data#>'{{values_diff, status}}' ->>0 IS NOT null
-		OR data#>'{{values_diff, status}}' ->>1 IS NOT null
-	)
-	AND namespace = 'project:{project_id}' -- this is the project identifier and place to de-dupe timeline events from users
-) q
-WHERE
-    created < to_timestamp('{until}', 'YYYY-MM-DD-HH24:MI:SS:US')
-AND
-    created > to_timestamp('{since}', 'YYYY-MM-DD-HH24:MI:SS:US')
-ORDER BY
-    user_story_ref,
-    created DESC;"""
 
     def sql(self, project_id, since, until):
         if not until:
-            until = datetime.datetime.now()        
-        return self.sql_template.format(
+            until = datetime.datetime.now()
+
+        sql_template = open(self.QUERY_TEMPLATE_FILE, 'r').read()
+        return sql_template.format(
             project_id=project_id,
             since=since,
             until=until
@@ -140,7 +85,9 @@ ORDER BY
         found = []
         try:
             cur = self.db_connection.cursor()
-            cur.execute(self.sql(project_id, since, until))
+            query = self.sql(project_id, since, until)
+            #  click.echo(query)  # DEBUG
+            cur.execute(query)
             for row in cur.fetchall():
                 found.append(
                     KanbanActivity(row)
@@ -197,9 +144,29 @@ def kanban(db_host, db_user, db_password, project_id, since, until):
         until=until
     )
 
+    click.echo("    %s events found" % len(data))
     # TODO: make report here
-    for r in data:
-        click.echo(r)
 
+    transitions = {}
+    for r in data:
+        if r.transition_name not in transitions.keys():
+            transitions[r.transition_name]=[]
+        transitions[r.transition_name].append(r)
+    
+    for t in transitions.keys():
+        name = t
+        count = len(transitions[t])
+        sp_missing = 0
+        size = 0
+        for r in transitions[t]:
+            if r.story_points:
+                size += r.story_points
+            else:
+                sp_missing += 1
+        if sp_missing:
+            sp_msg = "%s - %s stories unsized" % (size, sp_missing)
+        else:
+            sp_msg = "%s" % size
+        click.echo("%s: %s (%s)" % (t, count, sp_msg))
 
 cli.add_command(kanban)
