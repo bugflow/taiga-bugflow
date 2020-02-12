@@ -72,6 +72,9 @@ FROM
 		(
 			SELECT id from userstories_userstory
 			WHERE text(ref) = data#>>'{{userstory, ref}}'
+			-- if MULTIPLES, ignore all but the most recently created
+			ORDER BY created_date
+			LIMIT 1
 		) as "user_story_id",
 		data#>'{{userstory, ref}}' as "user_story_ref",
 		data#>'{{userstory, subject}}' as "user_story_subject", 
