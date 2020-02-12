@@ -5,7 +5,8 @@ setup(
     version='0.1',
     py_modules=['taiga-bugflow'],
     install_requires=[
-        'Click'
+        'Click',
+        'psycopg2'
     ],
     entry_points='''
         [console_scripts]
