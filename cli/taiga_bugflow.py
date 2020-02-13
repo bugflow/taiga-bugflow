@@ -54,10 +54,6 @@ def cli():
 )
 def kanban(db_host, db_user, db_password, db_port,
            db_name, output_dir, project_id, since, until):
-    click.echo("generating kanban activity report")
-    click.echo("    project_id: %s" % project_id)
-    click.echo("    --since: %s" % since)
-    click.echo("    --until: %s" % until)
 
     db = TaigaDB(db_host, db_user, db_password, db_port, db_name)
     data = db.kanban_activity(
@@ -65,16 +61,25 @@ def kanban(db_host, db_user, db_password, db_port,
         since=since,
         until=until
     )
-    click.echo("    %s events found" % len(data))  # DEBUG
-
+    # TODO: rename this into set-like class name
     kanban_data = Kanban(data)
 
-    fname = 'flow_summary.csv'
-    floc = os.path.join(output_dir, fname)  # output_dir is a param
+    num_found = len(data)
+    metadata = [
+        db_host, db_user, db_port, # password removed
+        db_name, output_dir, project_id, since, until,
+        num_found
+    ]
+    # output_dir is a param
+    floc = os.path.join(output_dir, 'report_parameters.txt')
+    print("DEBUG floc: %s" % floc)
+    print("DEBUG output_dir: %s" % output_dir)
+    uc.make_query_parameter_report(floc, metadata)
+
+    floc = os.path.join(output_dir, 'flow_summary.csv')
     uc.make_kanban_summary_report(floc, kanban_data)
 
-    fname = 'flow_details.csv'
-    floc = os.path.join(output_dir, fname)
+    floc = os.path.join(output_dir, 'flow_details.csv')
     uc.make_kanban_detail_report(floc, kanban_data)
     
 cli.add_command(kanban)
