@@ -37,3 +37,20 @@ class Kanban:
                 }
             )
         return table
+
+    def detail_table(self):
+        table = []
+        for row in self._data:
+            # TODO: unpack the attributes into a dictionary
+            table.append(
+                {
+                    'transition': row.transition_name,
+                    'from_state': row.from_state,
+                    'to_state': row.to_state,
+                    'timestamp': row.transition_time,
+                    'story_id': row.ticket_id,
+                    'story': row.ticket_name,
+                    'story_size': row.story_points
+                }
+            )
+        return table

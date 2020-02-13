@@ -1,12 +1,9 @@
-#!/usr/bin/env python
 import click
-import csv
 import datetime
-import os
 import os.path
 from data import TaigaDB
 from reports import Kanban
-
+import uc
 
 @click.group()
 def cli():
@@ -73,22 +70,11 @@ def kanban(db_host, db_user, db_password, db_port,
     kanban_data = Kanban(data)
 
     fname = 'flow_summary.csv'
-    floc = os.path.join(output_dir, fname)
-    # create dir if required
-    if not os.path.exists(os.path.dirname(floc)):
-        try:
-            os.makedirs(os.path.dirname(floc))
-        except OSError as exc: # race!
-            if exc.errno != errno.EEXIST:
-                raise
+    floc = os.path.join(output_dir, fname)  # output_dir is a param
+    uc.make_kanban_summary_report(floc, kanban_data)
 
-    # preferred signature would be
-    # uc.make_foo_report(output_dir, kanban_data)
-    with open(floc, 'w', newline='') as csvfile:
-        columns = ['transition', 'count', 'unsized', 'story_points']
-        writer = csv.DictWriter(csvfile, fieldnames=columns)
-        writer.writeheader()
-        for r in kanban_data.summary_table():
-            writer.writerow(r)
+    fname = 'flow_details.csv'
+    floc = os.path.join(output_dir, fname)
+    uc.make_kanban_detail_report(floc, kanban_data)
     
 cli.add_command(kanban)
