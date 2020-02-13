@@ -72,8 +72,6 @@ def kanban(db_host, db_user, db_password, db_port,
     ]
     # output_dir is a param
     floc = os.path.join(output_dir, 'report_parameters.txt')
-    print("DEBUG floc: %s" % floc)
-    print("DEBUG output_dir: %s" % output_dir)
     uc.make_query_parameter_report(floc, metadata)
 
     floc = os.path.join(output_dir, 'flow_summary.csv')

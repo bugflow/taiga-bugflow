@@ -16,6 +16,9 @@ def _ensure_parent_dir_exists(file_location):
 
 def make_kanban_summary_report(file_location, kanban_data):
     _ensure_parent_dir_exists(file_location)
+    if len(kanban_data) == 0:
+        return False
+
     with open(file_location, 'w', newline='') as csvfile:
         columns = ['transition', 'count', 'unsized', 'story_points']
         writer = csv.DictWriter(csvfile, fieldnames=columns)
@@ -28,6 +31,9 @@ def make_kanban_summary_report(file_location, kanban_data):
 def make_kanban_detail_report(file_location, kanban_data):
     _ensure_parent_dir_exists(file_location)
     detail_table = kanban_data.detail_table()
+    if len(detail_table) == 0:
+        return False
+    
     with open(file_location, 'w', newline='') as csvfile:
         columns = detail_table[0].keys()
         writer = csv.DictWriter(csvfile, fieldnames=columns)
@@ -38,7 +44,6 @@ def make_kanban_detail_report(file_location, kanban_data):
     return True
 
 def make_query_parameter_report(file_location, metadata):
-    print("DEBUG: %s" % file_location)  # DEBUG
     _ensure_parent_dir_exists(file_location)
     with open(file_location, 'w', newline='') as txtfile:
         txtfile.write(
