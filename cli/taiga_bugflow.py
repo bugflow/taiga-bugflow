@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import click
+import csv
 import datetime
-#from model import KanbanActivity
+import os
+import os.path
 from data import TaigaDB
 from reports import Kanban
-import csv
 
 
 @click.group()
@@ -49,8 +50,13 @@ def cli():
     envvar='BUGFLOW_TAIGA_DB_NAME',
     default='taiga'
 )
+@click.option(
+    '--output_dir',
+    envvar='BUGFLOW_TAIGA_OUTPUT_DIR',
+    default='.output/'
+)
 def kanban(db_host, db_user, db_password, db_port,
-           db_name, project_id, since, until):
+           db_name, output_dir, project_id, since, until):
     click.echo("generating kanban activity report")
     click.echo("    project_id: %s" % project_id)
     click.echo("    --since: %s" % since)
@@ -64,17 +70,25 @@ def kanban(db_host, db_user, db_password, db_port,
     )
     click.echo("    %s events found" % len(data))  # DEBUG
 
-    k = Kanban(data)
+    kanban_data = Kanban(data)
 
-    with open('flow_summary.csv', 'w', newline='') as csvfile:
+    fname = 'flow_summary.csv'
+    floc = os.path.join(output_dir, fname)
+    # create dir if required
+    if not os.path.exists(os.path.dirname(floc)):
+        try:
+            os.makedirs(os.path.dirname(floc))
+        except OSError as exc: # race!
+            if exc.errno != errno.EEXIST:
+                raise
+
+    # preferred signature would be
+    # uc.make_foo_report(output_dir, kanban_data)
+    with open(floc, 'w', newline='') as csvfile:
         columns = ['transition', 'count', 'unsized', 'story_points']
         writer = csv.DictWriter(csvfile, fieldnames=columns)
         writer.writeheader()
-        for r in k.summary_table():
+        for r in kanban_data.summary_table():
             writer.writerow(r)
-    
-    # DEBUG
-    #for r in k.summary_table():
-    #    click.echo(r)
     
 cli.add_command(kanban)
